@@ -9,9 +9,9 @@ const DEFAULT_URLS = {
 }
 
 const PLATFORM_OPTIONS = [
-  { id: 'claude', label: 'Claude Desktop' },
-  { id: 'vscode', label: 'Visual Studio Code' },
-  { id: 'codex', label: 'Codex' },
+  { id: 'claude', label: 'Claude Desktop', targetFile: 'claude_desktop_config.json' },
+  { id: 'vscode', label: 'Visual Studio Code', targetFile: '.vscode/mcp.json' },
+  { id: 'codex', label: 'Codex', targetFile: '~/.codex/config.toml' },
 ]
 
 const SERVER_DEFINITIONS = [
@@ -84,15 +84,33 @@ function createPlatformPayload(platform, servers) {
     }
   }
 
-  if (platform === 'codex') {
-    return {
-      mcp_servers: servers,
-    }
-  }
-
   return {
     mcpServers: servers,
   }
+}
+
+// Codex does not use JSON configuration. Its MCP servers are declared as
+// TOML tables in ~/.codex/config.toml, one [mcp_servers.<name>] block per
+// server, e.g.:
+//
+//   [mcp_servers.jira]
+//   url = "https://example.atlassian.net/mcp"
+//
+// so Codex output must be generated as TOML text rather than run through
+// createPlatformPayload/JSON.stringify like the other platforms.
+function escapeTomlString(value) {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+function buildCodexToml(urls) {
+  const blocks = SERVER_DEFINITIONS.flatMap((server) => {
+    const normalized = normalizeUrl(urls[server.key], server.suffix)
+    if (!normalized) return []
+
+    return [`[mcp_servers.${server.name}]\nurl = "${escapeTomlString(normalized)}"`]
+  })
+
+  return blocks.join('\n\n')
 }
 
 function App() {
@@ -100,10 +118,8 @@ function App() {
   const [platform, setPlatform] = useState('claude')
   const [output, setOutput] = useState('')
 
-  const selectedPlatformLabel = useMemo(
-    () =>
-      PLATFORM_OPTIONS.find((option) => option.id === platform)?.label ||
-      'Selected Platform',
+  const selectedPlatform = useMemo(
+    () => PLATFORM_OPTIONS.find((option) => option.id === platform),
     [platform],
   )
 
@@ -115,6 +131,11 @@ function App() {
   }
 
   const handleGenerate = () => {
+    if (platform === 'codex') {
+      setOutput(buildCodexToml(urls))
+      return
+    }
+
     const servers = buildServerEntries(urls, platform)
     const payload = createPlatformPayload(platform, servers)
     setOutput(JSON.stringify(payload, null, 2))
@@ -128,7 +149,7 @@ function App() {
           <h1>MCP JSON Builder</h1>
           <p className="subtitle">
             Enter primary server URLs, pick a platform format, and generate an
-            MCP JSON config.
+            MCP config.
           </p>
         </header>
 
@@ -152,7 +173,7 @@ function App() {
           </section>
 
           <section className="panel" aria-labelledby="format-title">
-            <h2 id="format-title">2. Output MCP JSON Format</h2>
+            <h2 id="format-title">2. Output MCP Config Format</h2>
             <div className="radio-group" role="radiogroup" aria-label="Platform">
               {PLATFORM_OPTIONS.map((option) => (
                 <label key={option.id} className="radio-option">
@@ -172,9 +193,11 @@ function App() {
           <section className="panel action-panel" aria-labelledby="generate-title">
             <h2 id="generate-title">3. Generate</h2>
             <button type="button" className="generate-button" onClick={handleGenerate}>
-              Generate MCP JSON File
+              Generate MCP Config File
             </button>
-            <p className="hint">Selected format: {selectedPlatformLabel}</p>
+            <p className="hint">
+              Selected format: {selectedPlatform?.label} ({selectedPlatform?.targetFile})
+            </p>
           </section>
 
           <section className="panel output-panel" aria-labelledby="output-title">
