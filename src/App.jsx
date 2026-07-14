@@ -280,39 +280,41 @@ function App() {
             </pre>
           </section>
 
-          <section className="panel installation-panel" aria-labelledby="installation-title">
-            <h2 id="installation-title">5. Installation Instructions</h2>
-            <p className="hint">
-              How to add the {selectedPlatform?.label} config segment above to{' '}
-              {selectedPlatform?.targetFile}.
-            </p>
+          {output && (
+            <section className="panel installation-panel" aria-labelledby="installation-title">
+              <h2 id="installation-title">5. Installation Instructions</h2>
+              <p className="hint">
+                How to add the {selectedPlatform?.label} config segment above to{' '}
+                {selectedPlatform?.targetFile}.
+              </p>
 
-            {platform === 'claude' ? (
-              <>
-                <p className="install-intro">{INSTALLATION_INSTRUCTIONS.claude.intro}</p>
-                {INSTALLATION_INSTRUCTIONS.claude.methods.map((method) => (
-                  <div className="install-method" key={method.title}>
-                    <h3>{method.title}</h3>
-                    <p className="install-note">{method.note}</p>
-                    <ol>
-                      {method.steps.map((step) => (
-                        <li key={step}>{step}</li>
-                      ))}
-                    </ol>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <div className="install-method">
-                <p className="install-intro">{INSTALLATION_INSTRUCTIONS[platform].intro}</p>
-                <ol>
-                  {INSTALLATION_INSTRUCTIONS[platform].steps.map((step) => (
-                    <li key={step}>{step}</li>
+              {platform === 'claude' ? (
+                <>
+                  <p className="install-intro">{INSTALLATION_INSTRUCTIONS.claude.intro}</p>
+                  {INSTALLATION_INSTRUCTIONS.claude.methods.map((method) => (
+                    <div className="install-method" key={method.title}>
+                      <h3>{method.title}</h3>
+                      <p className="install-note">{method.note}</p>
+                      <ol>
+                        {method.steps.map((step) => (
+                          <li key={step}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
                   ))}
-                </ol>
-              </div>
-            )}
-          </section>
+                </>
+              ) : (
+                <div className="install-method">
+                  <p className="install-intro">{INSTALLATION_INSTRUCTIONS[platform].intro}</p>
+                  <ol>
+                    {INSTALLATION_INSTRUCTIONS[platform].steps.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </section>
     </main>
