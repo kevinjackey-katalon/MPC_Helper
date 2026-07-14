@@ -12,6 +12,11 @@ const PLATFORM_OPTIONS = [
   { id: 'claude', label: 'Claude Desktop', targetFile: 'claude_desktop_config.json' },
   { id: 'vscode', label: 'Visual Studio Code', targetFile: '.vscode/mcp.json' },
   { id: 'codex', label: 'Codex', targetFile: '~/.codex/config.toml' },
+  {
+    id: 'bruno',
+    label: 'Bruno',
+    targetFile: 'bruno-mcp-collection/ (bruno.json + .bru request files)',
+  },
 ]
 
 const SERVER_DEFINITIONS = [
@@ -130,6 +135,110 @@ function buildCodexToml(urls) {
   return blocks.join('\n\n')
 }
 
+// Bruno (usebruno.com) is an API client, not an MCP client — it has no
+// "add mcp server" config file the way Claude Desktop, VS Code, and Codex
+// do. What Bruno *can* do is act as a plain HTTP client against an MCP
+// server's Streamable HTTP endpoint, performing the JSON-RPC handshake by
+// hand: initialize -> notifications/initialized -> tools/list. So instead
+// of a single config file, the "config" for Bruno is a small collection of
+// .bru request files (one bruno.json plus, per server, an initialize /
+// initialized / list-tools request) that do that handshake.
+function buildMcpRequestBru({ name, seq, url, sessionVar, includeSessionHeader, body }) {
+  const headerLines = ['Content-Type: application/json', 'Accept: application/json, text/event-stream']
+  if (includeSessionHeader) {
+    headerLines.push(`mcp-session-id: {{${sessionVar}}}`)
+  }
+
+  // Only the initialize request has a session id to capture — Bruno
+  // returns response headers on `res.headers` inside a post-response script.
+  const scriptBlock =
+    name === 'initialize'
+      ? `\n\nscript:post-response {\n  const sessionId = res.headers['mcp-session-id']\n  if (sessionId) {\n    bru.setVar('${sessionVar}', sessionId)\n  }\n}`
+      : ''
+
+  return (
+    `meta {\n  name: ${name}\n  type: http\n  seq: ${seq}\n}\n\n` +
+    `post {\n  url: ${url}\n  body: json\n}\n\n` +
+    `headers {\n  ${headerLines.join('\n  ')}\n}\n\n` +
+    `body:json {\n${JSON.stringify(body, null, 2)}\n}${scriptBlock}\n`
+  )
+}
+
+function buildBrunoCollection(urls) {
+  const serverFiles = SERVER_DEFINITIONS.flatMap((server) => {
+    const normalized = normalizeUrl(urls[server.key], server.suffix)
+    if (!normalized) return []
+
+    const sessionVar = `${server.name.replace(/-/g, '_')}SessionId`
+
+    const initialize = buildMcpRequestBru({
+      name: 'initialize',
+      seq: 1,
+      url: normalized,
+      sessionVar,
+      includeSessionHeader: false,
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: { roots: { listChanged: true } },
+          clientInfo: { name: 'katalon-mcp-helper', version: '1.0.0' },
+        },
+      },
+    })
+
+    const initialized = buildMcpRequestBru({
+      name: 'initialized',
+      seq: 2,
+      url: normalized,
+      sessionVar,
+      includeSessionHeader: true,
+      body: {
+        jsonrpc: '2.0',
+        method: 'notifications/initialized',
+      },
+    })
+
+    const listTools = buildMcpRequestBru({
+      name: 'list-tools',
+      seq: 3,
+      url: normalized,
+      sessionVar,
+      includeSessionHeader: true,
+      body: {
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/list',
+      },
+    })
+
+    return [
+      { path: `${server.name}/01-initialize.bru`, content: initialize },
+      { path: `${server.name}/02-initialized.bru`, content: initialized },
+      { path: `${server.name}/03-list-tools.bru`, content: listTools },
+    ]
+  })
+
+  if (serverFiles.length === 0) return ''
+
+  const brunoJson = JSON.stringify(
+    {
+      version: '1',
+      name: 'katalon-mcp-servers',
+      type: 'collection',
+      ignore: ['node_modules', '.git'],
+    },
+    null,
+    2,
+  )
+
+  const files = [{ path: 'bruno.json', content: brunoJson }, ...serverFiles]
+
+  return files.map((file) => `// ===== ${file.path} =====\n${file.content}`).join('\n\n')
+}
+
 const INSTALLATION_INSTRUCTIONS = {
   claude: {
     intro:
@@ -184,6 +293,19 @@ const INSTALLATION_INSTRUCTIONS = {
       'Run a Codex command that lists configured MCP servers to confirm the new server is recognized.',
     ],
   },
+  bruno: {
+    intro:
+      'Bruno is an API client, not an MCP client — it has no single "add MCP server" config file like Claude Desktop, VS Code, or Codex. Instead, the output above is a small Bruno collection that talks to each configured Katalon MCP server directly over HTTP, performing the MCP handshake (initialize → initialized → list tools) as three separate requests.',
+    steps: [
+      'Create a new folder on disk for the collection, e.g. katalon-mcp-bruno-collection.',
+      'Save the "bruno.json" block from the output above as bruno.json in the root of that folder.',
+      'For each server folder shown in the output (e.g. katalon-testops/, katalon-studio-standalone/), create a matching subfolder and save each block as its own file, using the "name" in its meta block for the filename (01-initialize.bru, 02-initialized.bru, 03-list-tools.bru).',
+      'In Bruno, choose File → Open Collection and select the folder you created.',
+      'Open a server\'s "01-initialize" request and click Send. Its post-response script automatically captures the returned mcp-session-id into a collection variable.',
+      'Run "02-initialized", then "03-list-tools" for the same server — both pick up the stored session id automatically and should return the server\'s available tools.',
+      'Repeat for any other configured servers; each has its own session variable, so they can be run independently of one another.',
+    ],
+  },
 }
 
 function App() {
@@ -206,6 +328,11 @@ function App() {
   const handleGenerate = () => {
     if (platform === 'codex') {
       setOutput(buildCodexToml(urls))
+      return
+    }
+
+    if (platform === 'bruno') {
+      setOutput(buildBrunoCollection(urls))
       return
     }
 
