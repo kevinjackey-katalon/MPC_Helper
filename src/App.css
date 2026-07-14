@@ -163,6 +163,52 @@
   font-size: 0.9rem;
 }
 
+.installation-panel {
+  grid-column: 1 / -1;
+}
+
+.install-intro {
+  margin: 0 0 1rem;
+  color: #1f5261;
+}
+
+.install-method {
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(20, 80, 97, 0.15);
+  border-radius: 12px;
+  background: #f8fcff;
+}
+
+.install-method:last-child {
+  margin-bottom: 0;
+}
+
+.install-method h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  color: #0e4a5c;
+}
+
+.install-note {
+  margin: 0 0 0.6rem;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: #2f6675;
+}
+
+.install-method ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.install-method li {
+  color: #13343d;
+  line-height: 1.45;
+}
+
 @media (max-width: 860px) {
   .page-shell {
     width: min(96vw, 1080px);

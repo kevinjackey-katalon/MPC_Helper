@@ -130,6 +130,62 @@ function buildCodexToml(urls) {
   return blocks.join('\n\n')
 }
 
+const INSTALLATION_INSTRUCTIONS = {
+  claude: {
+    intro:
+      'Claude Desktop stores its MCP server configuration in claude_desktop_config.json. How you get to that file depends on which Claude Desktop version you have installed.',
+    methods: [
+      {
+        title: 'Newer versions — Settings → Developer (recommended)',
+        note: 'Use this method if your Claude Desktop has a "Developer" tab under Settings. This has been the standard method since mid-2025 releases.',
+        steps: [
+          'Open the Claude menu from your system menu bar (macOS) or the app window (Windows) — not the in-chat settings — and choose "Settings…".',
+          'Select the "Developer" tab in the left sidebar.',
+          'Click "Edit Config". This opens claude_desktop_config.json in your default text editor, creating the file if it does not already exist.',
+          'Paste in the config segment shown above. If the file already has an "mcpServers" object, merge the new server entry into it rather than replacing the whole file.',
+          'Save the file, then fully quit Claude Desktop (not just close the window) and reopen it.',
+          'Look for the MCP/tools indicator in the message input area to confirm the server connected.',
+        ],
+      },
+      {
+        title: 'Older versions — manual file edit',
+        note: 'Use this method if your Settings screen has no "Developer" tab. Locate and edit the config file directly with a text editor.',
+        steps: [
+          'Close Claude Desktop.',
+          'Open the config file in a text editor, creating the folder/file if needed:',
+          'macOS: ~/Library/Application Support/Claude/claude_desktop_config.json',
+          'Windows: %APPDATA%\\Claude\\claude_desktop_config.json',
+          'If the file is empty or new, start with { "mcpServers": {} }.',
+          'Paste in the config segment shown above, merging it into the existing "mcpServers" object if one is already present.',
+          'Save the file and reopen Claude Desktop.',
+        ],
+      },
+    ],
+  },
+  vscode: {
+    intro:
+      'VS Code reads MCP server definitions from a workspace-level mcp.json file.',
+    steps: [
+      'In your project root, create a .vscode folder if one does not already exist.',
+      'Inside it, create or open .vscode/mcp.json.',
+      'Paste in the config segment shown above. If the file already has a "servers" object, merge the new entry into it rather than replacing the whole file.',
+      'Save the file. VS Code will detect the new MCP server automatically (or use the "MCP: List Servers" command from the Command Palette to start it manually).',
+      'Confirm the server appears and connects via the MCP status indicator in the Command Palette or the Copilot Chat view.',
+    ],
+  },
+  codex: {
+    intro:
+      'Codex reads MCP servers as TOML tables from a global config file rather than JSON.',
+    steps: [
+      'Open (or create) ~/.codex/config.toml in a text editor.',
+      'Paste in the TOML block(s) shown above, appending them to the file rather than replacing any existing content.',
+      'Save the file.',
+      'Restart Codex, or start a new session, so it picks up the updated configuration.',
+      'Run a Codex command that lists configured MCP servers to confirm the new server is recognized.',
+    ],
+  },
+}
+
 function App() {
   const [urls, setUrls] = useState(DEFAULT_URLS)
   const [platform, setPlatform] = useState('claude')
@@ -222,6 +278,40 @@ function App() {
             <pre className="output-box" aria-live="polite">
               {output}
             </pre>
+          </section>
+
+          <section className="panel installation-panel" aria-labelledby="installation-title">
+            <h2 id="installation-title">5. Installation Instructions</h2>
+            <p className="hint">
+              How to add the {selectedPlatform?.label} config segment above to{' '}
+              {selectedPlatform?.targetFile}.
+            </p>
+
+            {platform === 'claude' ? (
+              <>
+                <p className="install-intro">{INSTALLATION_INSTRUCTIONS.claude.intro}</p>
+                {INSTALLATION_INSTRUCTIONS.claude.methods.map((method) => (
+                  <div className="install-method" key={method.title}>
+                    <h3>{method.title}</h3>
+                    <p className="install-note">{method.note}</p>
+                    <ol>
+                      {method.steps.map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div className="install-method">
+                <p className="install-intro">{INSTALLATION_INSTRUCTIONS[platform].intro}</p>
+                <ol>
+                  {INSTALLATION_INSTRUCTIONS[platform].steps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </section>
         </div>
       </section>
